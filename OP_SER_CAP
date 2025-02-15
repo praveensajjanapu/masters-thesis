@@ -1,0 +1,66 @@
+
+
+% m1 is a severity fading vector from the BS to Relays
+% m2 is a severity fading vector from the Relays to Users
+% gamThdB is the outage threshold vector of UEs
+% PsdB is the transmit power at the BS in the first hop
+% PrdB is the atransmit power vector at the relays in the second hop
+% OP CAP are matrices in which the i-th columns are the OP and CAP of i-th user
+% Omega1 is a vector for all users
+function [OP,SER,CAP] = OP_SER_CAP(m1,m2,Omega1,Omega2,PbdB,PrdB,gamThdB,N0,NOL,NB,NR1,NR2,NU,a_MPSK,b_MPSK)
+
+Pb = 10.^(PbdB/10);
+Pr=10.^(PrdB/10);
+
+rho1 = Pb./N0;
+rho2 = Pr./N0;
+
+gamTh = 10.^(gamThdB/10);
+
+Alpha1 = m1./Omega1; % a vector for all users
+Alpha2 = m2./Omega2;
+    
+
+[beta,beta_bar] = Beta_array(Omega1);
+
+OP = zeros(length(PbdB),length(beta));
+SER = zeros(length(PbdB),length(beta));
+CAP = zeros(length(PbdB),length(beta));
+for ii = 1:length(PbdB) 
+
+    OP_NOMA = zeros(1,length(beta));
+    SER_NOMA = zeros(1,length(beta)); 
+    CAP_NOMA = zeros(1,length(beta)); 
+    for l = 1:NOL
+        X1 = zeros(1,length(beta));
+        X2 = zeros(1,length(beta)); 
+        gamma1_NOMA= zeros(1,length(beta));
+        gamma2_NOMA= zeros(1,length(beta)); 
+        for k = 1:length(m1) 
+            X1_kij = gamrnd(m1(k),1./Alpha1(k), [NB, NR1]);
+            X1(k) = max(X1_kij, [], 'all');
+            X2_kij = gamrnd(m2(k),1./Alpha2(k), [NR2, NU]);
+            X2(k) = max(X2_kij, [], 'all');
+        end % end of for loop l           
+        gamma1_NOMA = (rho1(ii)*(beta.*X1))./(rho1(ii)*beta_bar.*X1+1);
+        gamma2_NOMA = rho1(ii)*X2;  
+        
+        Gamma_NOMA = min(gamma1_NOMA,gamma2_NOMA);
+        
+        Check_outage_NOMA = (Gamma_NOMA<gamTh);
+        OP_NOMA = OP_NOMA + Check_outage_NOMA;
+
+        %MPSKError=a_MPSK*qfunc(sqrt(b_MPSK*abs(Gamma_NOMA)));
+        SER_NOMA=SER_NOMA + a_MPSK*qfunc(sqrt(b_MPSK*abs(Gamma_NOMA)));
+
+        CAP_NOMA = CAP_NOMA + log2(1+Gamma_NOMA).*(1-Check_outage_NOMA);
+    end
+    OP_NOMA = OP_NOMA/NOL;
+    SER_NOMA = SER_NOMA/NOL;
+    CAP_NOMA = CAP_NOMA/NOL;
+    OP(ii,:) = OP_NOMA;
+    SER(ii,:) = SER_NOMA;
+    CAP(ii,:) = CAP_NOMA;
+end % End loop of frequency
+
+
